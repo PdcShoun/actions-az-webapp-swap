@@ -1,5 +1,5 @@
 import * as core from '@actions/core';
-import * as artifact from '@actions/artifact';
+import { DefaultArtifactClient } from '@actions/artifact/lib/internal/client';
 import fs from 'fs';
 import path from 'path';
 import { createBranchWhenNotExist, createPullRequest, gitCommit, gitCommitNewBranch } from '../utils/githubUtiltiy';
@@ -21,9 +21,8 @@ export class CreateSwapPlan {
   public async execute() {
     core.debug(`Using create-swap-plan mode`);
     const { repo, path: targetPath, ref, token: personalAccessToken } = this.options;
-    const artifactClient = artifact.create();
-    const downloadResponse = await artifactClient.downloadAllArtifacts();
-
+    const artifactClient = new DefaultArtifactClient();
+    const listArtifactsResponse = await artifactClient.listArtifacts();
     const sharedGitConfig = {
       repo,
       ref,
@@ -42,14 +41,21 @@ export class CreateSwapPlan {
     await executeProcess('tree', { slient: false });
 
     // output result
-    for (let response of downloadResponse) {
-      console.log(response.artifactName);
-      console.log(response.downloadPath);
-      await executeProcess(
-        `cp -rf ${path.join(response.downloadPath, WorkingDirectory.root, WorkingDirectory.beforeSwap)} ${
-          WorkingDirectory.root
-        }`
-      );
+    for (const artifactItem of listArtifactsResponse.artifacts) {
+      const downloadArtifactResponse = await artifactClient.downloadArtifact(artifactItem.id);
+      if (downloadArtifactResponse.downloadPath) {
+        console.log(artifactItem.name);
+        console.log(downloadArtifactResponse.downloadPath);
+        await executeProcess(
+          `cp -rf ${path.join(
+            downloadArtifactResponse.downloadPath,
+            WorkingDirectory.root,
+            WorkingDirectory.beforeSwap
+          )} ${WorkingDirectory.root}`
+        );
+      } else {
+        core.warning(`Artifact ${artifactItem.name} did not have a download path.`);
+      }
     }
 
     await gitCommit({
@@ -64,14 +70,21 @@ export class CreateSwapPlan {
      * Step 3: Simulate if values are swapped (Target Slot)
      */
 
-    for (let response of downloadResponse) {
-      console.log(response.artifactName);
-      console.log(response.downloadPath);
-      await executeProcess(
-        `cp -rf ${path.join(response.downloadPath, WorkingDirectory.root, WorkingDirectory.afterSwap)} ${
-          WorkingDirectory.root
-        }`
-      );
+    for (const artifactItem of listArtifactsResponse.artifacts) {
+      const downloadArtifactResponse = await artifactClient.downloadArtifact(artifactItem.id);
+      if (downloadArtifactResponse.downloadPath) {
+        console.log(artifactItem.name);
+        console.log(downloadArtifactResponse.downloadPath);
+        await executeProcess(
+          `cp -rf ${path.join(
+            downloadArtifactResponse.downloadPath,
+            WorkingDirectory.root,
+            WorkingDirectory.afterSwap
+          )} ${WorkingDirectory.root}`
+        );
+      } else {
+        core.warning(`Artifact ${artifactItem.name} did not have a download path.`);
+      }
     }
 
     // Create tmp file if no change it will be merge
