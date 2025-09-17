@@ -20,7 +20,9 @@ export default class AppSettingsMasking {
 
     if (this.type === AppSettingsType.ConnectionStrings) {
       for (const appSetting of appSettings) {
-        appSetting.value = hashValue(appSetting.value);
+        if (appSetting.value !== null) {
+          appSetting.value = hashValue(appSetting.value);
+        }
       }
       return appSettings;
     }
@@ -30,7 +32,9 @@ export default class AppSettingsMasking {
         const found = findAppSettingName(swapAppSetting.name, appSettings);
         if (found >= 0) {
           const foundAppSetting = appSettings[found];
-          foundAppSetting.value = hashValue(foundAppSetting.value);
+          if (foundAppSetting.value !== null) {
+            foundAppSetting.value = hashValue(foundAppSetting.value);
+          }
         } else {
           core.warning(
             `Cannot masking the app setting name "${swapAppSetting.name}" on app service "${this.swapAppService.name}/${slot}" because app setting name is not found`

@@ -6,6 +6,7 @@ import { createBranchWhenNotExist, createPullRequest, gitCommit, gitCommitNewBra
 import { constants } from '../constants';
 import { executeProcess } from '../utils/executeProcess';
 import { PathUtility } from '../utils/PathUtility';
+import { Artifact, DownloadArtifactResponse } from '@actions/artifact';
 const { WorkingDirectory, DefaultEncoding, gitConfig } = constants;
 
 interface ICreateSwapPlanOption {
@@ -13,6 +14,10 @@ interface ICreateSwapPlanOption {
   ref: string;
   token: string;
   path: string;
+}
+
+interface ArtifactItem extends DownloadArtifactResponse, Artifact {
+  downloadPath: string;
 }
 
 export class CreateSwapPlan {
@@ -23,6 +28,7 @@ export class CreateSwapPlan {
     const { repo, path: targetPath, ref, token: personalAccessToken } = this.options;
     const artifactClient = new DefaultArtifactClient();
     const listArtifactsResponse = await artifactClient.listArtifacts();
+
     const sharedGitConfig = {
       repo,
       ref,
@@ -40,22 +46,29 @@ export class CreateSwapPlan {
 
     await executeProcess('tree', { slient: false });
 
+    const artifactItems: ArtifactItem[] = [];
+
     // output result
-    for (const artifactItem of listArtifactsResponse.artifacts) {
-      const downloadArtifactResponse = await artifactClient.downloadArtifact(artifactItem.id);
-      if (downloadArtifactResponse.downloadPath) {
-        console.log(artifactItem.name);
-        console.log(downloadArtifactResponse.downloadPath);
-        await executeProcess(
-          `cp -rf ${path.join(
-            downloadArtifactResponse.downloadPath,
-            WorkingDirectory.root,
-            WorkingDirectory.beforeSwap
-          )} ${WorkingDirectory.root}`
-        );
-      } else {
-        core.warning(`Artifact ${artifactItem.name} did not have a download path.`);
+    let copyFolder = '';
+    for (const artifact of listArtifactsResponse.artifacts) {
+      const downloadArtifactResponse = await artifactClient.downloadArtifact(artifact.id, {
+        path: artifact.name,
+      });
+      if (!downloadArtifactResponse.downloadPath) {
+        core.warning(`Artifact ${artifact.name} did not have a download path.`);
+        continue;
       }
+      artifactItems.push({ ...downloadArtifactResponse, ...artifact } as ArtifactItem);
+      console.log(artifact.name);
+      console.log(downloadArtifactResponse.downloadPath);
+      await executeProcess(
+        `cp -rf ${path.join(
+          downloadArtifactResponse.downloadPath,
+          WorkingDirectory.root,
+          WorkingDirectory.beforeSwap
+        )}${copyFolder} ${WorkingDirectory.root}`
+      );
+      copyFolder = '/*';
     }
 
     await gitCommit({
@@ -69,22 +82,16 @@ export class CreateSwapPlan {
     /**
      * Step 3: Simulate if values are swapped (Target Slot)
      */
-
-    for (const artifactItem of listArtifactsResponse.artifacts) {
-      const downloadArtifactResponse = await artifactClient.downloadArtifact(artifactItem.id);
-      if (downloadArtifactResponse.downloadPath) {
-        console.log(artifactItem.name);
-        console.log(downloadArtifactResponse.downloadPath);
-        await executeProcess(
-          `cp -rf ${path.join(
-            downloadArtifactResponse.downloadPath,
-            WorkingDirectory.root,
-            WorkingDirectory.afterSwap
-          )} ${WorkingDirectory.root}`
-        );
-      } else {
-        core.warning(`Artifact ${artifactItem.name} did not have a download path.`);
-      }
+    copyFolder = '';
+    for (const artifact of artifactItems) {
+      console.log(artifact.name);
+      console.log(artifact.downloadPath);
+      await executeProcess(
+        `cp -rf ${path.join(artifact.downloadPath, WorkingDirectory.root, WorkingDirectory.afterSwap)}${copyFolder} ${
+          WorkingDirectory.root
+        }`
+      );
+      copyFolder = '/*';
     }
 
     // Create tmp file if no change it will be merge

@@ -37,7 +37,7 @@ export const azureCommands = {
      */
     const slotSettingCommand = appSetting.slotSetting === true ? '--slot-settings' : '--settings';
     const key = appSetting.name.replaceAll('"', '\\"');
-    const value = appSetting.value.replaceAll('"', '\\"');
+    const value = (appSetting.value || '').replaceAll('"', '\\"');
     return stripIndent`
       az webapp config connection-string set \\
           --name ${name} \\

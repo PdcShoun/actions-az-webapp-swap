@@ -24,4 +24,5 @@ export interface ISwapAppService {
   defaultSensitive: DefaultSensitiveEnum;
   appSettings: ISwapAppSetting[];
   connectionStrings: ISwapAppSetting[];
+  hideValue?: boolean;
 }

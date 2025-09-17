@@ -1,5 +1,4 @@
 import { WriteFileOptions } from 'fs';
-import path from 'path';
 
 interface IConstants {
   FallbackValue: {
@@ -11,6 +10,7 @@ interface IConstants {
     root: string;
     beforeSwap: string;
     afterSwap: string;
+    download: string;
   };
 
   gitConfig: {
@@ -32,6 +32,7 @@ export const constants: IConstants = {
     root: 'app-settings',
     beforeSwap: 'before-swap',
     afterSwap: 'after-swap',
+    download: 'download',
   },
   gitConfig: {
     name: 'GitHub Action Swap Bot',

@@ -24,6 +24,13 @@ interface IAppSettingsAllSlots {
 export class GetDeploySlots {
   constructor(private swapAppService: ISwapAppService) {}
 
+  private nullifyAppSettingValues(appSettingsSlots: IAppSettingSlots): IAppSettingSlots {
+    return {
+      source: appSettingsSlots.source.map(s => ({ ...s, value: null })),
+      target: appSettingsSlots.target.map(t => ({ ...t, value: null })),
+    };
+  }
+
   private async uploadArtifact(artifactName: string, files: string[]) {
     const artifactClient = artifact.default;
     const rootDirectory = '.';
@@ -31,7 +38,7 @@ export class GetDeploySlots {
       retentionDays: 1,
     };
 
-    const uploadResponse = await artifactClient.uploadArtifact(artifactName, files, rootDirectory, options);
+    await artifactClient.uploadArtifact(artifactName, files, rootDirectory, options);
     core.info(`Upload artifact named, "${artifactName}" completed!`);
   }
 
@@ -75,11 +82,23 @@ export class GetDeploySlots {
 
   public async execute() {
     core.debug(`Using get-deploy-slots mode`);
-    const appSettingsSlot = await this.getAppSettingsAllSlots(AppSettingsType.AppSettings, this.swapAppService);
-    const connectionStringsSlot = await this.getAppSettingsAllSlots(
+    let appSettingsSlot = await this.getAppSettingsAllSlots(AppSettingsType.AppSettings, this.swapAppService);
+    let connectionStringsSlot = await this.getAppSettingsAllSlots(
       AppSettingsType.ConnectionStrings,
       this.swapAppService
     );
+
+    if (this.swapAppService.hideValue) {
+      core.info('hideValue is true, nullifying all app setting and connection string values.');
+      appSettingsSlot = {
+        appSettings: this.nullifyAppSettingValues(appSettingsSlot.appSettings),
+        simulatedSwappedAppSettings: this.nullifyAppSettingValues(appSettingsSlot.simulatedSwappedAppSettings),
+      };
+      connectionStringsSlot = {
+        appSettings: this.nullifyAppSettingValues(connectionStringsSlot.appSettings),
+        simulatedSwappedAppSettings: this.nullifyAppSettingValues(connectionStringsSlot.simulatedSwappedAppSettings),
+      };
+    }
 
     const { beforeSwap, afterSwap, root: rootPath } = WorkingDirectory;
     const beforeSwapPath = path.join(rootPath, beforeSwap);

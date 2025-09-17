@@ -6,6 +6,7 @@
     "targetSlot": "production",
     "defaultSlotSetting": "true",
     "defaultSensitive": "false",
+    "hideValue": true,
     "appSettings": [
       {
         "name": "data1",
