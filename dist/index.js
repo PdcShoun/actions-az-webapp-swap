@@ -108,7 +108,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.CreateSwapPlan = void 0;
 const core = __importStar(__nccwpck_require__(42186));
-const client_1 = __nccwpck_require__(46190);
+const artifact_1 = __nccwpck_require__(79450);
 const fs_1 = __importDefault(__nccwpck_require__(35747));
 const path_1 = __importDefault(__nccwpck_require__(85622));
 const githubUtiltiy_1 = __nccwpck_require__(23582);
@@ -124,7 +124,7 @@ class CreateSwapPlan {
         return __awaiter(this, void 0, void 0, function* () {
             core.debug(`Using create-swap-plan mode`);
             const { repo, path: targetPath, ref, token: personalAccessToken } = this.options;
-            const artifactClient = new client_1.DefaultArtifactClient();
+            const artifactClient = new artifact_1.DefaultArtifactClient();
             const listArtifactsResponse = yield artifactClient.listArtifacts();
             const sharedGitConfig = {
                 repo,
@@ -138,10 +138,10 @@ class CreateSwapPlan {
              * Step 2: Commit Marked App Setting (Source Slot)
              */
             const pathUtility = new PathUtility_1.PathUtility(WorkingDirectory.root);
+            fs_1.default.mkdirSync(WorkingDirectory.root, { recursive: true });
             yield (0, executeProcess_1.executeProcess)('tree', { slient: false });
             const artifactItems = [];
             // output result
-            let copyFolder = '';
             for (const artifact of listArtifactsResponse.artifacts) {
                 const downloadArtifactResponse = yield artifactClient.downloadArtifact(artifact.id, {
                     path: artifact.name,
@@ -153,20 +153,20 @@ class CreateSwapPlan {
                 artifactItems.push(Object.assign(Object.assign({}, downloadArtifactResponse), artifact));
                 console.log(artifact.name);
                 console.log(downloadArtifactResponse.downloadPath);
-                yield (0, executeProcess_1.executeProcess)(`cp -rf ${path_1.default.join(downloadArtifactResponse.downloadPath, WorkingDirectory.root, WorkingDirectory.beforeSwap)}${copyFolder} ${WorkingDirectory.root}`);
-                copyFolder = '/*';
+                const beforePath = path_1.default.join(downloadArtifactResponse.downloadPath, WorkingDirectory.root, WorkingDirectory.beforeSwap);
+                yield (0, executeProcess_1.executeProcess)(`cp -rf ${beforePath}/* ${WorkingDirectory.root}/`);
             }
             yield (0, githubUtiltiy_1.gitCommit)(Object.assign(Object.assign({}, sharedGitConfig), { targetPath, rootPath: WorkingDirectory.root, message: 'Get App Setting' }));
             pathUtility.clean();
+            fs_1.default.mkdirSync(WorkingDirectory.root, { recursive: true });
             /**
              * Step 3: Simulate if values are swapped (Target Slot)
              */
-            copyFolder = '';
             for (const artifact of artifactItems) {
                 console.log(artifact.name);
                 console.log(artifact.downloadPath);
-                yield (0, executeProcess_1.executeProcess)(`cp -rf ${path_1.default.join(artifact.downloadPath, WorkingDirectory.root, WorkingDirectory.afterSwap)}${copyFolder} ${WorkingDirectory.root}`);
-                copyFolder = '/*';
+                const afterPath = path_1.default.join(artifact.downloadPath, WorkingDirectory.root, WorkingDirectory.afterSwap);
+                yield (0, executeProcess_1.executeProcess)(`cp -rf ${afterPath}/* ${WorkingDirectory.root}/`);
             }
             // Create tmp file if no change it will be merge
             fs_1.default.writeFileSync(path_1.default.resolve(WorkingDirectory.root, `timestamp-${new Date().getTime()}`), 'Force Diff for Preview Change', DefaultEncoding);
@@ -219,7 +219,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.GetDeploySlots = void 0;
 const core = __importStar(__nccwpck_require__(42186));
-const artifact = __importStar(__nccwpck_require__(79450));
+const artifact_1 = __nccwpck_require__(79450);
 const fs_1 = __importDefault(__nccwpck_require__(35747));
 const path_1 = __importDefault(__nccwpck_require__(85622));
 const SwapAppSettings_1 = __importDefault(__nccwpck_require__(70878));
@@ -233,15 +233,9 @@ class GetDeploySlots {
     constructor(swapAppService) {
         this.swapAppService = swapAppService;
     }
-    nullifyAppSettingValues(appSettingsSlots) {
-        return {
-            source: appSettingsSlots.source.map(s => (Object.assign(Object.assign({}, s), { value: null }))),
-            target: appSettingsSlots.target.map(t => (Object.assign(Object.assign({}, t), { value: null }))),
-        };
-    }
     uploadArtifact(artifactName, files) {
         return __awaiter(this, void 0, void 0, function* () {
-            const artifactClient = artifact.default;
+            const artifactClient = new artifact_1.DefaultArtifactClient();
             const rootDirectory = '.';
             const options = {
                 retentionDays: 1,
@@ -282,19 +276,8 @@ class GetDeploySlots {
     execute() {
         return __awaiter(this, void 0, void 0, function* () {
             core.debug(`Using get-deploy-slots mode`);
-            let appSettingsSlot = yield this.getAppSettingsAllSlots(AppSettingsBase_1.AppSettingsType.AppSettings, this.swapAppService);
-            let connectionStringsSlot = yield this.getAppSettingsAllSlots(AppSettingsBase_1.AppSettingsType.ConnectionStrings, this.swapAppService);
-            if (this.swapAppService.hideValue) {
-                core.info('hideValue is true, nullifying all app setting and connection string values.');
-                appSettingsSlot = {
-                    appSettings: this.nullifyAppSettingValues(appSettingsSlot.appSettings),
-                    simulatedSwappedAppSettings: this.nullifyAppSettingValues(appSettingsSlot.simulatedSwappedAppSettings),
-                };
-                connectionStringsSlot = {
-                    appSettings: this.nullifyAppSettingValues(connectionStringsSlot.appSettings),
-                    simulatedSwappedAppSettings: this.nullifyAppSettingValues(connectionStringsSlot.simulatedSwappedAppSettings),
-                };
-            }
+            const appSettingsSlot = yield this.getAppSettingsAllSlots(AppSettingsBase_1.AppSettingsType.AppSettings, this.swapAppService);
+            const connectionStringsSlot = yield this.getAppSettingsAllSlots(AppSettingsBase_1.AppSettingsType.ConnectionStrings, this.swapAppService);
             const { beforeSwap, afterSwap, root: rootPath } = WorkingDirectory;
             const beforeSwapPath = path_1.default.join(rootPath, beforeSwap);
             const afterSwapPath = path_1.default.join(rootPath, afterSwap);
@@ -459,7 +442,6 @@ exports.constants = {
         root: 'app-settings',
         beforeSwap: 'before-swap',
         afterSwap: 'after-swap',
-        download: 'download',
     },
     gitConfig: {
         name: 'GitHub Action Swap Bot',
@@ -594,6 +576,7 @@ const InputValidation_1 = __importDefault(__nccwpck_require__(13781));
 const SwapAppSettings_1 = __importDefault(__nccwpck_require__(70878));
 const SwapAppSettings_2 = __importDefault(__nccwpck_require__(60915));
 const AppSettingsMasking_1 = __importDefault(__nccwpck_require__(37451));
+const AppSettingsHiding_1 = __importDefault(__nccwpck_require__(22836));
 var AppSettingsType;
 (function (AppSettingsType) {
     AppSettingsType["AppSettings"] = "AppSettings";
@@ -643,6 +626,13 @@ class AppSettingsBase {
         this.target = appSettingMasking.mask(this.target, this.swapAppService.targetSlot);
         return this;
     }
+    hide() {
+        // Set appSettings null to hide value
+        const appSettingHiding = new AppSettingsHiding_1.default(this.swapAppService, this.type);
+        this.source = appSettingHiding.hide(this.source, this.swapAppService.slot);
+        this.target = appSettingHiding.hide(this.target, this.swapAppService.targetSlot);
+        return this;
+    }
     fullfill() {
         core.info('Fullfilling Swap config with App Setting');
         const swapAppSettings = new SwapAppSettings_1.default(this.swapAppService);
@@ -664,6 +654,8 @@ class AppSettingsBase {
     loadAppSettings() {
         return __awaiter(this, void 0, void 0, function* () {
             (yield this.list()).validate().fullfill().mask();
+            if (this.swapAppService.hideValue)
+                this.hide();
         });
     }
     setWebAppSourceSlot() {
@@ -683,6 +675,69 @@ class AppSettingsBase {
     }
 }
 exports.default = AppSettingsBase;
+
+
+/***/ }),
+
+/***/ 22836:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const core = __importStar(__nccwpck_require__(42186));
+const swapAppSettingsUtility_1 = __nccwpck_require__(27783);
+const AppSettingsBase_1 = __nccwpck_require__(52797);
+class AppSettingsHiding {
+    constructor(swapAppService, type) {
+        this.swapAppService = swapAppService;
+        this.type = type;
+    }
+    hide(appSettings, slot) {
+        const swapAppSettings = this.type === AppSettingsBase_1.AppSettingsType.ConnectionStrings
+            ? this.swapAppService.connectionStrings
+            : this.swapAppService.appSettings;
+        if (this.type === AppSettingsBase_1.AppSettingsType.ConnectionStrings) {
+            for (const appSetting of appSettings) {
+                appSetting.value = null;
+            }
+            return appSettings;
+        }
+        for (const swapAppSetting of swapAppSettings) {
+            if (swapAppSetting.sensitive === true) {
+                const found = (0, swapAppSettingsUtility_1.findAppSettingName)(swapAppSetting.name, appSettings);
+                if (found >= 0) {
+                    const foundAppSetting = appSettings[found];
+                    foundAppSetting.value = null;
+                }
+                else {
+                    core.warning(`Cannot masking the app setting name "${swapAppSetting.name}" on app service "${this.swapAppService.name}/${slot}" because app setting name is not found`);
+                }
+            }
+        }
+        return appSettings;
+    }
+}
+exports.default = AppSettingsHiding;
 
 
 /***/ }),
@@ -736,9 +791,7 @@ class AppSettingsMasking {
             : this.swapAppService.appSettings;
         if (this.type === AppSettingsBase_1.AppSettingsType.ConnectionStrings) {
             for (const appSetting of appSettings) {
-                if (appSetting.value !== null) {
-                    appSetting.value = hashValue(appSetting.value);
-                }
+                appSetting.value = hashValue(appSetting.value);
             }
             return appSettings;
         }
@@ -747,9 +800,7 @@ class AppSettingsMasking {
                 const found = (0, swapAppSettingsUtility_1.findAppSettingName)(swapAppSetting.name, appSettings);
                 if (found >= 0) {
                     const foundAppSetting = appSettings[found];
-                    if (foundAppSetting.value !== null) {
-                        foundAppSetting.value = hashValue(foundAppSetting.value);
-                    }
+                    foundAppSetting.value = hashValue(foundAppSetting.value);
                 }
                 else {
                     core.warning(`Cannot masking the app setting name "${swapAppSetting.name}" on app service "${this.swapAppService.name}/${slot}" because app setting name is not found`);

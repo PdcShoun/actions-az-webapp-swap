@@ -1,5 +1,5 @@
 import * as core from '@actions/core';
-import { DefaultArtifactClient } from '@actions/artifact/lib/internal/client';
+import { DefaultArtifactClient } from '@actions/artifact';
 import fs from 'fs';
 import path from 'path';
 import { createBranchWhenNotExist, createPullRequest, gitCommit, gitCommitNewBranch } from '../utils/githubUtiltiy';
@@ -43,13 +43,13 @@ export class CreateSwapPlan {
      * Step 2: Commit Marked App Setting (Source Slot)
      */
     const pathUtility = new PathUtility(WorkingDirectory.root);
+    fs.mkdirSync(WorkingDirectory.root, { recursive: true });
 
     await executeProcess('tree', { slient: false });
 
     const artifactItems: ArtifactItem[] = [];
 
     // output result
-    let copyFolder = '';
     for (const artifact of listArtifactsResponse.artifacts) {
       const downloadArtifactResponse = await artifactClient.downloadArtifact(artifact.id, {
         path: artifact.name,
@@ -61,14 +61,12 @@ export class CreateSwapPlan {
       artifactItems.push({ ...downloadArtifactResponse, ...artifact } as ArtifactItem);
       console.log(artifact.name);
       console.log(downloadArtifactResponse.downloadPath);
-      await executeProcess(
-        `cp -rf ${path.join(
-          downloadArtifactResponse.downloadPath,
-          WorkingDirectory.root,
-          WorkingDirectory.beforeSwap
-        )}${copyFolder} ${WorkingDirectory.root}`
+      const beforePath = path.join(
+        downloadArtifactResponse.downloadPath,
+        WorkingDirectory.root,
+        WorkingDirectory.beforeSwap
       );
-      copyFolder = '/*';
+      await executeProcess(`cp -rf ${beforePath}/* ${WorkingDirectory.root}/`);
     }
 
     await gitCommit({
@@ -78,20 +76,16 @@ export class CreateSwapPlan {
       message: 'Get App Setting',
     });
     pathUtility.clean();
+    fs.mkdirSync(WorkingDirectory.root, { recursive: true });
 
     /**
      * Step 3: Simulate if values are swapped (Target Slot)
      */
-    copyFolder = '';
     for (const artifact of artifactItems) {
       console.log(artifact.name);
       console.log(artifact.downloadPath);
-      await executeProcess(
-        `cp -rf ${path.join(artifact.downloadPath, WorkingDirectory.root, WorkingDirectory.afterSwap)}${copyFolder} ${
-          WorkingDirectory.root
-        }`
-      );
-      copyFolder = '/*';
+      const afterPath = path.join(artifact.downloadPath, WorkingDirectory.root, WorkingDirectory.afterSwap);
+      await executeProcess(`cp -rf ${afterPath}/* ${WorkingDirectory.root}/`);
     }
 
     // Create tmp file if no change it will be merge
