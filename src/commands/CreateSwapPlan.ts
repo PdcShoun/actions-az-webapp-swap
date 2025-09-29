@@ -1,12 +1,11 @@
 import * as core from '@actions/core';
-import { DefaultArtifactClient } from '@actions/artifact';
+import { DefaultArtifactClient, Artifact, DownloadArtifactResponse } from '@actions/artifact';
 import fs from 'fs';
 import path from 'path';
 import { createBranchWhenNotExist, createPullRequest, gitCommit, gitCommitNewBranch } from '../utils/githubUtiltiy';
 import { constants } from '../constants';
 import { executeProcess } from '../utils/executeProcess';
 import { PathUtility } from '../utils/PathUtility';
-import { Artifact, DownloadArtifactResponse } from '@actions/artifact';
 const { WorkingDirectory, DefaultEncoding, gitConfig } = constants;
 
 interface ICreateSwapPlanOption {

@@ -412,8 +412,8 @@ class SwapSlots {
     execute() {
         return __awaiter(this, void 0, void 0, function* () {
             core.debug(`Using swap-slots mode`);
-            const { name, resourceGroup, slot, targetSlot } = this.swapAppService;
-            yield (0, azureUtility_1.webAppSwap)(name, resourceGroup, slot, targetSlot);
+            const { name, resourceGroup, slot, targetSlot, subscriptionId } = this.swapAppService;
+            yield (0, azureUtility_1.webAppSwap)(name, resourceGroup, slot, targetSlot, { subscriptionId });
         });
     }
 }
@@ -504,10 +504,10 @@ class AppSettings extends AppSettingsBase_1.default {
     list() {
         return __awaiter(this, void 0, void 0, function* () {
             core.info('Listing App Setting from Azure Web App (Azure App Service) ...');
-            const { name, resourceGroup, slot, targetSlot } = this.swapAppService;
+            const { name, resourceGroup, slot, targetSlot, subscriptionId } = this.swapAppService;
             [this.source, this.target] = yield Promise.all([
-                (0, azureUtility_1.webAppListAppSettings)(name, resourceGroup, slot),
-                (0, azureUtility_1.webAppListAppSettings)(name, resourceGroup, targetSlot),
+                (0, azureUtility_1.webAppListAppSettings)(name, resourceGroup, { subscriptionId, slot }),
+                (0, azureUtility_1.webAppListAppSettings)(name, resourceGroup, { subscriptionId, slot: targetSlot }),
             ]);
             return this;
         });
@@ -516,13 +516,13 @@ class AppSettings extends AppSettingsBase_1.default {
     setWebApp(appSettings, slot) {
         return __awaiter(this, void 0, void 0, function* () {
             const { workingDirectory, defaultEncoding } = this.options;
-            const { name, resourceGroup } = this.swapAppService;
+            const { name, resourceGroup, subscriptionId } = this.swapAppService;
             const appSettingPath = path_1.default.resolve(workingDirectory, `${name}-${slot}`);
             if (!fs_1.default.existsSync(workingDirectory))
                 fs_1.default.mkdirSync(workingDirectory, { recursive: true });
             fs_1.default.writeFileSync(appSettingPath, JSON.stringify(appSettings), defaultEncoding);
             core.info('Start set app Setting');
-            yield (0, azureUtility_1.webAppSetAppSettings)(name, resourceGroup, slot, appSettingPath);
+            yield (0, azureUtility_1.webAppSetAppSettings)(name, resourceGroup, appSettingPath, { subscriptionId, slot });
             core.info('Removing file');
             fs_1.default.rmSync(appSettingPath, { force: true });
         });
@@ -891,10 +891,10 @@ class ConnectionStrings extends AppSettingsBase_1.default {
     list() {
         return __awaiter(this, void 0, void 0, function* () {
             core.info('Listing App Setting from Azure Web App (Azure App Service) ...');
-            const { name, resourceGroup, slot, targetSlot } = this.swapAppService;
+            const { name, resourceGroup, slot, targetSlot, subscriptionId } = this.swapAppService;
             [this.source, this.target] = yield Promise.all([
-                (0, azureUtility_1.webAppListConnectionStrings)(name, resourceGroup, slot),
-                (0, azureUtility_1.webAppListConnectionStrings)(name, resourceGroup, targetSlot),
+                (0, azureUtility_1.webAppListConnectionStrings)(name, resourceGroup, { subscriptionId, slot }),
+                (0, azureUtility_1.webAppListConnectionStrings)(name, resourceGroup, { subscriptionId, slot: targetSlot }),
             ]);
             return this;
         });
@@ -902,9 +902,9 @@ class ConnectionStrings extends AppSettingsBase_1.default {
     /** @override */
     setWebApp(appSettings, slot) {
         return __awaiter(this, void 0, void 0, function* () {
-            const { name, resourceGroup } = this.swapAppService;
+            const { name, resourceGroup, subscriptionId } = this.swapAppService;
             core.info('Start set ConnectionString');
-            yield (0, azureUtility_1.webAppSetConnectionStrings)(name, resourceGroup, slot, appSettings);
+            yield (0, azureUtility_1.webAppSetConnectionStrings)(name, resourceGroup, appSettings, { subscriptionId, slot });
         });
     }
 }
@@ -1287,27 +1287,34 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.webAppSwap = exports.webAppSetAppSettings = exports.webAppListAppSettings = exports.webAppSetConnectionStrings = exports.webAppListConnectionStrings = exports.azureCommands = void 0;
 const executeProcess_1 = __nccwpck_require__(94550);
 const common_tags_1 = __nccwpck_require__(63509);
+function buildAzCommandOptions(options) {
+    const azSubscriptionCommand = options.subscriptionId ? `--subscription ${options.subscriptionId}` : '';
+    const azSlotCommand = options.slot !== 'production' && options.slot !== undefined ? `--slot ${options.slot}` : '';
+    return { azSubscriptionCommand, azSlotCommand };
+}
 exports.azureCommands = {
-    webAppListAppSettings: (name, resourceGroup, slot) => {
-        const azSlotCommand = slot !== 'production' && slot !== undefined ? `--slot ${slot}` : '';
+    webAppListAppSettings: (name, resourceGroup, options) => {
+        const { azSubscriptionCommand, azSlotCommand } = buildAzCommandOptions(options);
         return (0, common_tags_1.stripIndent) `
       az webapp config appsettings list \\
           --name ${name} \\
           ${azSlotCommand} \\
+          ${azSubscriptionCommand} \\
           --resource-group ${resourceGroup}
   `;
     },
-    webAppListConnectionStrings: (name, resourceGroup, slot) => {
-        const azSlotCommand = slot !== 'production' && slot !== undefined ? `--slot ${slot}` : '';
+    webAppListConnectionStrings: (name, resourceGroup, options) => {
+        const { azSubscriptionCommand, azSlotCommand } = buildAzCommandOptions(options);
         return (0, common_tags_1.stripIndent) `
       az webapp config connection-string list \\
           --name ${name} \\
           ${azSlotCommand} \\
+          ${azSubscriptionCommand} \\
           --resource-group ${resourceGroup}
   `;
     },
-    webAppSetConnectionString: (name, resourceGroup, appSetting, slot) => {
-        const azSlotCommand = slot !== 'production' && slot !== undefined ? `--slot ${slot}` : '';
+    webAppSetConnectionString: (name, resourceGroup, appSetting, options) => {
+        const { azSubscriptionCommand, azSlotCommand } = buildAzCommandOptions(options);
         /**
          * Note: Due to Azure CLI version 2.35.0,
          * If using `--settings` in the code, no matter slotSettings in Azure is True or False,
@@ -1319,44 +1326,48 @@ exports.azureCommands = {
          */
         const slotSettingCommand = appSetting.slotSetting === true ? '--slot-settings' : '--settings';
         const key = appSetting.name.replaceAll('"', '\\"');
-        const value = (appSetting.value || '').replaceAll('"', '\\"');
+        const value = appSetting.value.replaceAll('"', '\\"');
         return (0, common_tags_1.stripIndent) `
       az webapp config connection-string set \\
           --name ${name} \\
           ${azSlotCommand} \\
+          ${azSubscriptionCommand} \\
           --connection-string-type ${appSetting.type} \\
           --resource-group ${resourceGroup} \\
           ${slotSettingCommand} "${key}"="${value}"
   `;
     },
-    webAppSetAppSettingsByFile: (name, resourceGroup, slot, appSettingPath) => {
-        const azSlotCommand = slot !== 'production' && slot !== undefined ? `--slot ${slot}` : '';
+    webAppSetAppSettingsByFile: (name, resourceGroup, appSettingPath, options) => {
+        const { azSubscriptionCommand, azSlotCommand } = buildAzCommandOptions(options);
         return (0, common_tags_1.stripIndent) `
       az webapp config appsettings set \\
         --name ${name} \\
         --resource-group ${resourceGroup} \\
         ${azSlotCommand} \\
+        ${azSubscriptionCommand} \\
         --settings @${appSettingPath}
     `;
     },
-    webAppDeploySlotSwap: (name, resourceGroup, slot, targetSlot) => {
+    webAppDeploySlotSwap: (name, resourceGroup, slot, targetSlot, options) => {
+        const { azSubscriptionCommand } = buildAzCommandOptions(options);
         return (0, common_tags_1.stripIndent) `
       az webapp deployment slot swap \\
         --name ${name} \\
         --resource-group ${resourceGroup} \\
         --slot ${slot} \\
+        ${azSubscriptionCommand} \\
         --target-slot ${targetSlot}
     `;
     },
 };
-function webAppListConnectionStrings(name, resourceGroup, slot) {
+function webAppListConnectionStrings(name, resourceGroup, options) {
     return __awaiter(this, void 0, void 0, function* () {
-        const result = yield (0, executeProcess_1.executeProcess)(exports.azureCommands.webAppListConnectionStrings(name, resourceGroup, slot));
+        const result = yield (0, executeProcess_1.executeProcess)(exports.azureCommands.webAppListConnectionStrings(name, resourceGroup, options));
         return JSON.parse((0, executeProcess_1.parseBufferToString)(result.stdout));
     });
 }
 exports.webAppListConnectionStrings = webAppListConnectionStrings;
-function webAppSetConnectionStrings(name, resourceGroup, slot, appSettings) {
+function webAppSetConnectionStrings(name, resourceGroup, appSettings, options) {
     return __awaiter(this, void 0, void 0, function* () {
         /**
          * Because Azure CLI cannot use set JSON file with connection string
@@ -1365,28 +1376,28 @@ function webAppSetConnectionStrings(name, resourceGroup, slot, appSettings) {
          */
         const workers = [];
         for (const appSetting of appSettings) {
-            workers.push((0, executeProcess_1.executeProcess)(exports.azureCommands.webAppSetConnectionString(name, resourceGroup, appSetting, slot)));
+            workers.push((0, executeProcess_1.executeProcess)(exports.azureCommands.webAppSetConnectionString(name, resourceGroup, appSetting, options)));
         }
         yield Promise.all(workers);
     });
 }
 exports.webAppSetConnectionStrings = webAppSetConnectionStrings;
-function webAppListAppSettings(name, resourceGroup, slot) {
+function webAppListAppSettings(name, resourceGroup, options) {
     return __awaiter(this, void 0, void 0, function* () {
-        const result = yield (0, executeProcess_1.executeProcess)(exports.azureCommands.webAppListAppSettings(name, resourceGroup, slot));
+        const result = yield (0, executeProcess_1.executeProcess)(exports.azureCommands.webAppListAppSettings(name, resourceGroup, options));
         return JSON.parse((0, executeProcess_1.parseBufferToString)(result.stdout));
     });
 }
 exports.webAppListAppSettings = webAppListAppSettings;
-function webAppSetAppSettings(name, resourceGroup, slot, appSettingPath) {
+function webAppSetAppSettings(name, resourceGroup, appSettingPath, options) {
     return __awaiter(this, void 0, void 0, function* () {
-        return yield (0, executeProcess_1.executeProcess)(exports.azureCommands.webAppSetAppSettingsByFile(name, resourceGroup, slot, appSettingPath));
+        return yield (0, executeProcess_1.executeProcess)(exports.azureCommands.webAppSetAppSettingsByFile(name, resourceGroup, appSettingPath, options));
     });
 }
 exports.webAppSetAppSettings = webAppSetAppSettings;
-function webAppSwap(name, resourceGroup, slot, targetSlot) {
+function webAppSwap(name, resourceGroup, slot, targetSlot, options) {
     return __awaiter(this, void 0, void 0, function* () {
-        return yield (0, executeProcess_1.executeProcess)(exports.azureCommands.webAppDeploySlotSwap(name, resourceGroup, slot, targetSlot));
+        return yield (0, executeProcess_1.executeProcess)(exports.azureCommands.webAppDeploySlotSwap(name, resourceGroup, slot, targetSlot, options));
     });
 }
 exports.webAppSwap = webAppSwap;
