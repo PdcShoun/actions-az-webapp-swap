@@ -9,19 +9,20 @@ const globalConfig = {
   slot: 'production',
   targetSlot: 'staging',
   defaultSlotSetting: DefaultSlotSettingEnum.required, // This will not effect in test
+  defaultSensitive: DefaultSensitiveEnum.required, // This will not effect in test
 };
 
 describe('App Setting Type', () => {
-  test('AppSettingsHiding.hide() (AppSettings) should return null value in appSettings if sensitive is true', () => {
+  test('AppSettingsHiding.hide() (AppSettings) should return null value in appSettings if hideValue is true', () => {
     const swapAppService: ISwapAppService = {
       ...globalConfig,
-      defaultSensitive: DefaultSensitiveEnum.required,
       connectionStrings: [],
       appSettings: [
         {
           name: 'data',
-          sensitive: true,
+          sensitive: false,
           slotSetting: true,
+          hideValue: true,
         },
       ],
     };
@@ -46,10 +47,44 @@ describe('App Setting Type', () => {
     expect(appSettingsHiding.hide(appSettings, 'staging')).toStrictEqual(expected);
   });
 
-  test('AppSettingsHiding.hide() (AppSettings) should return actual value in appSettings if sensitive is false', () => {
+  test('AppSettingsHiding.hide() (AppSettings) should return actual value in appSettings if hideValue is false', () => {
     const swapAppService: ISwapAppService = {
       ...globalConfig,
       defaultSensitive: DefaultSensitiveEnum.required,
+      connectionStrings: [],
+      appSettings: [
+        {
+          name: 'data',
+          sensitive: false,
+          slotSetting: true,
+          hideValue: false,
+        },
+      ],
+    };
+
+    const appSettings: IAppSetting[] = [
+      {
+        name: 'data',
+        value: 'value',
+        slotSetting: true,
+      },
+    ];
+
+    const expected: IAppSetting[] = [
+      {
+        name: 'data',
+        value: 'value',
+        slotSetting: true,
+      },
+    ];
+
+    const appSettingsHiding = new AppSettingsHiding(swapAppService, AppSettingsType.AppSettings);
+    expect(appSettingsHiding.hide(appSettings, 'staging')).toStrictEqual(expected);
+  });
+
+  test('AppSettingsHiding.hide() (AppSettings) should return actual value in appSettings if hideValue is undefined', () => {
+    const swapAppService: ISwapAppService = {
+      ...globalConfig,
       connectionStrings: [],
       appSettings: [
         {
@@ -82,41 +117,7 @@ describe('App Setting Type', () => {
 });
 
 describe('Connection String Type', () => {
-  test('AppSettingsHiding.hide() (connectionStrings) should return always null value in connectionStrings if sensitive is true', () => {
-    const swapAppService: ISwapAppService = {
-      ...globalConfig,
-      defaultSensitive: DefaultSensitiveEnum.required,
-      connectionStrings: [
-        {
-          name: 'data',
-          sensitive: true,
-          slotSetting: true,
-        },
-      ],
-      appSettings: [],
-    };
-
-    const appSettings: IAppSetting[] = [
-      {
-        name: 'data',
-        value: 'value',
-        slotSetting: true,
-      },
-    ];
-
-    const expected: IAppSetting[] = [
-      {
-        name: 'data',
-        value: null,
-        slotSetting: true,
-      },
-    ];
-
-    const appSettingsHiding = new AppSettingsHiding(swapAppService, AppSettingsType.ConnectionStrings);
-    expect(appSettingsHiding.hide(appSettings, 'staging')).toStrictEqual(expected);
-  });
-
-  test('AppSettingsHiding.hide() (connectionStrings) should return always null value in connectionStrings if sensitive is false', () => {
+  test('AppSettingsHiding.hide() (connectionStrings) should return always null value in connectionStrings if hideValue is true', () => {
     const swapAppService: ISwapAppService = {
       ...globalConfig,
       defaultSensitive: DefaultSensitiveEnum.required,
@@ -125,6 +126,7 @@ describe('Connection String Type', () => {
           name: 'data',
           sensitive: false,
           slotSetting: true,
+          hideValue: true,
         },
       ],
       appSettings: [],
@@ -150,10 +152,44 @@ describe('Connection String Type', () => {
     expect(appSettingsHiding.hide(appSettings, 'staging')).toStrictEqual(expected);
   });
 
-  test('AppSettingsHiding.hide() (connectionStrings) should return always null value in connectionStrings if defaultSensitive is true, and no specific config for sensitive', () => {
+  test('AppSettingsHiding.hide() (connectionStrings) should return always null value in connectionStrings if hideValue is false', () => {
     const swapAppService: ISwapAppService = {
       ...globalConfig,
-      defaultSensitive: DefaultSensitiveEnum.true,
+      connectionStrings: [
+        {
+          name: 'data',
+          sensitive: false,
+          slotSetting: true,
+          hideValue: false,
+        },
+      ],
+      appSettings: [],
+    };
+
+    const appSettings: IAppSetting[] = [
+      {
+        name: 'data',
+        value: 'value',
+        slotSetting: true,
+      },
+    ];
+
+    const expected: IAppSetting[] = [
+      {
+        name: 'data',
+        value: 'value',
+        slotSetting: true,
+      },
+    ];
+
+    const appSettingsHiding = new AppSettingsHiding(swapAppService, AppSettingsType.ConnectionStrings);
+    expect(appSettingsHiding.hide(appSettings, 'staging')).toStrictEqual(expected);
+  });
+
+  test('AppSettingsHiding.hide() (connectionStrings) should return always null value in connectionStrings if defaultHideValue is true, and no specific config for hideValue', () => {
+    const swapAppService: ISwapAppService = {
+      ...globalConfig,
+      defaultHideValue: true,
       connectionStrings: [],
       appSettings: [],
     };

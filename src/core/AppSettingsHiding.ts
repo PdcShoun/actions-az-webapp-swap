@@ -12,7 +12,7 @@ export default class AppSettingsHiding {
         ? this.swapAppService.connectionStrings
         : this.swapAppService.appSettings;
 
-    if (this.type === AppSettingsType.ConnectionStrings) {
+    if (this.type === AppSettingsType.ConnectionStrings && this.swapAppService.defaultHideValue === true) {
       for (const appSetting of appSettings) {
         appSetting.value = null;
       }
@@ -20,14 +20,14 @@ export default class AppSettingsHiding {
     }
 
     for (const swapAppSetting of swapAppSettings) {
-      if (swapAppSetting.sensitive === true) {
+      if (swapAppSetting.hideValue === true) {
         const found = findAppSettingName(swapAppSetting.name, appSettings);
         if (found >= 0) {
           const foundAppSetting = appSettings[found];
           foundAppSetting.value = null;
         } else {
           core.warning(
-            `Cannot masking the app setting name "${swapAppSetting.name}" on app service "${this.swapAppService.name}/${slot}" because app setting name is not found`
+            `Cannot hiding the app setting name "${swapAppSetting.name}" on app service "${this.swapAppService.name}/${slot}" because app setting name is not found`
           );
         }
       }

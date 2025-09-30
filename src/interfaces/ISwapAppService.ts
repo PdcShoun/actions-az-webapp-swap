@@ -23,7 +23,7 @@ export interface ISwapAppService {
   targetSlot: string;
   defaultSlotSetting: DefaultSlotSettingEnum;
   defaultSensitive: DefaultSensitiveEnum;
+  defaultHideValue?: boolean;
   appSettings: ISwapAppSetting[];
   connectionStrings: ISwapAppSetting[];
-  hideValue?: boolean;
 }

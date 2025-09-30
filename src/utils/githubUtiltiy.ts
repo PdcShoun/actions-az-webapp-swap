@@ -113,9 +113,9 @@ export async function createBranchWhenNotExist({ repo, personalAccessToken, ref,
       git.configUser(email, name),
       git.checkoutNewBranch(ref),
       git.pushUpstream(ref),
+      `rm -rf ${tmpDir}`,
     ]);
   } else console.log(`The branch "${ref} is exist"`);
-  await executeProcess(`rm -rf ${tmpDir}`);
 }
 
 async function isBranchExist(branch: string, repoPath: string): Promise<boolean> {

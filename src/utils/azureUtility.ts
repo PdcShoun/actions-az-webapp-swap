@@ -8,7 +8,7 @@ type AzureCommandOption = {
   slot?: string;
 };
 
-function buildAzCommandOptions(options: AzureCommandOption) {
+export function buildAzCommandOptions(options: AzureCommandOption) {
   const azSubscriptionCommand = options.subscriptionId ? `--subscription ${options.subscriptionId}` : '';
   const azSlotCommand = options.slot !== 'production' && options.slot !== undefined ? `--slot ${options.slot}` : '';
   return { azSubscriptionCommand, azSlotCommand };
@@ -55,7 +55,8 @@ export const azureCommands = {
      */
     const slotSettingCommand = appSetting.slotSetting === true ? '--slot-settings' : '--settings';
     const key = appSetting.name.replaceAll('"', '\\"');
-    const value = (appSetting.value as string).replaceAll('"', '\\"');
+    if (appSetting.value === null) throw new Error('Something wrong with implementation, value should not be null');
+    const value = appSetting.value.replaceAll('"', '\\"');
     return stripIndent`
       az webapp config connection-string set \\
           --name ${name} \\
@@ -89,7 +90,7 @@ export const azureCommands = {
     resourceGroup: string,
     slot: string,
     targetSlot: string,
-    options: AzureCommandOption
+    options: Omit<AzureCommandOption, 'slot'>
   ) => {
     const { azSubscriptionCommand } = buildAzCommandOptions(options);
     return stripIndent`
@@ -153,7 +154,7 @@ export async function webAppSwap(
   resourceGroup: string,
   slot: string,
   targetSlot: string,
-  options: AzureCommandOption
+  options: Omit<AzureCommandOption, 'slot'>
 ): Promise<Output> {
   return await executeProcess(azureCommands.webAppDeploySlotSwap(name, resourceGroup, slot, targetSlot, options));
 }

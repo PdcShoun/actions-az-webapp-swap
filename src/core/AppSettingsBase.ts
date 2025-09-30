@@ -93,8 +93,7 @@ export default class AppSettingsBase {
    */
 
   public async loadAppSettings() {
-    (await this.list()).validate().fullfill().mask();
-    if (this.swapAppService.hideValue) this.hide();
+    (await this.list()).validate().fullfill().mask().hide();
   }
 
   public setWebAppSourceSlot() {

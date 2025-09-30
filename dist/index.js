@@ -653,9 +653,7 @@ class AppSettingsBase {
      */
     loadAppSettings() {
         return __awaiter(this, void 0, void 0, function* () {
-            (yield this.list()).validate().fullfill().mask();
-            if (this.swapAppService.hideValue)
-                this.hide();
+            (yield this.list()).validate().fullfill().mask().hide();
         });
     }
     setWebAppSourceSlot() {
@@ -716,21 +714,21 @@ class AppSettingsHiding {
         const swapAppSettings = this.type === AppSettingsBase_1.AppSettingsType.ConnectionStrings
             ? this.swapAppService.connectionStrings
             : this.swapAppService.appSettings;
-        if (this.type === AppSettingsBase_1.AppSettingsType.ConnectionStrings) {
+        if (this.type === AppSettingsBase_1.AppSettingsType.ConnectionStrings && this.swapAppService.defaultHideValue === true) {
             for (const appSetting of appSettings) {
                 appSetting.value = null;
             }
             return appSettings;
         }
         for (const swapAppSetting of swapAppSettings) {
-            if (swapAppSetting.sensitive === true) {
+            if (swapAppSetting.hideValue === true) {
                 const found = (0, swapAppSettingsUtility_1.findAppSettingName)(swapAppSetting.name, appSettings);
                 if (found >= 0) {
                     const foundAppSetting = appSettings[found];
                     foundAppSetting.value = null;
                 }
                 else {
-                    core.warning(`Cannot masking the app setting name "${swapAppSetting.name}" on app service "${this.swapAppService.name}/${slot}" because app setting name is not found`);
+                    core.warning(`Cannot hiding the app setting name "${swapAppSetting.name}" on app service "${this.swapAppService.name}/${slot}" because app setting name is not found`);
                 }
             }
         }
@@ -791,6 +789,8 @@ class AppSettingsMasking {
             : this.swapAppService.appSettings;
         if (this.type === AppSettingsBase_1.AppSettingsType.ConnectionStrings) {
             for (const appSetting of appSettings) {
+                if (appSetting.value === null)
+                    continue;
                 appSetting.value = hashValue(appSetting.value);
             }
             return appSettings;
@@ -800,6 +800,8 @@ class AppSettingsMasking {
                 const found = (0, swapAppSettingsUtility_1.findAppSettingName)(swapAppSetting.name, appSettings);
                 if (found >= 0) {
                     const foundAppSetting = appSettings[found];
+                    if (foundAppSetting.value === null)
+                        continue;
                     foundAppSetting.value = hashValue(foundAppSetting.value);
                 }
                 else {
@@ -979,6 +981,8 @@ class SwapAppSettings {
     generateAppSetting(appSetting) {
         // Prepare Sensitive
         const sensitive = this.swapAppService.defaultSensitive === interfaces_1.DefaultSensitiveEnum.false ? false : FallbackValue.sensitive;
+        // Prepare Hide value
+        const hideValue = this.swapAppService.defaultHideValue === true;
         // Prepare slotSetting
         let slotSetting = this.swapAppService.defaultSlotSetting === interfaces_1.DefaultSlotSettingEnum.inherit
             ? appSetting.slotSetting
@@ -989,6 +993,7 @@ class SwapAppSettings {
             name: appSetting.name,
             sensitive,
             slotSetting,
+            hideValue,
             // It will use for merging between 2 app settings
             baseSlotSetting: appSetting.slotSetting,
         };
@@ -1284,7 +1289,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.webAppSwap = exports.webAppSetAppSettings = exports.webAppListAppSettings = exports.webAppSetConnectionStrings = exports.webAppListConnectionStrings = exports.azureCommands = void 0;
+exports.webAppSwap = exports.webAppSetAppSettings = exports.webAppListAppSettings = exports.webAppSetConnectionStrings = exports.webAppListConnectionStrings = exports.azureCommands = exports.buildAzCommandOptions = void 0;
 const executeProcess_1 = __nccwpck_require__(94550);
 const common_tags_1 = __nccwpck_require__(63509);
 function buildAzCommandOptions(options) {
@@ -1292,6 +1297,7 @@ function buildAzCommandOptions(options) {
     const azSlotCommand = options.slot !== 'production' && options.slot !== undefined ? `--slot ${options.slot}` : '';
     return { azSubscriptionCommand, azSlotCommand };
 }
+exports.buildAzCommandOptions = buildAzCommandOptions;
 exports.azureCommands = {
     webAppListAppSettings: (name, resourceGroup, options) => {
         const { azSubscriptionCommand, azSlotCommand } = buildAzCommandOptions(options);
@@ -1326,6 +1332,8 @@ exports.azureCommands = {
          */
         const slotSettingCommand = appSetting.slotSetting === true ? '--slot-settings' : '--settings';
         const key = appSetting.name.replaceAll('"', '\\"');
+        if (appSetting.value === null)
+            throw new Error('Something wrong with implementation, value should not be null');
         const value = appSetting.value.replaceAll('"', '\\"');
         return (0, common_tags_1.stripIndent) `
       az webapp config connection-string set \\
@@ -1588,11 +1596,11 @@ function createBranchWhenNotExist({ repo, personalAccessToken, ref, name, email 
                 exports.git.configUser(email, name),
                 exports.git.checkoutNewBranch(ref),
                 exports.git.pushUpstream(ref),
+                `rm -rf ${tmpDir}`,
             ]);
         }
         else
             console.log(`The branch "${ref} is exist"`);
-        yield (0, executeProcess_1.executeProcess)(`rm -rf ${tmpDir}`);
     });
 }
 exports.createBranchWhenNotExist = createBranchWhenNotExist;
@@ -1681,6 +1689,7 @@ const AppSettingSchema = zod_1.z.object({
     sensitive: zod_1.z.boolean(),
     // TODO: Make it optional later
     slotSetting: zod_1.z.boolean(),
+    hideValue: zod_1.z.boolean().optional(),
 });
 const SwapAppServiceSchema = zod_1.z.object({
     name: zod_1.z.string(),
@@ -1689,6 +1698,7 @@ const SwapAppServiceSchema = zod_1.z.object({
     targetSlot: zod_1.z.string(),
     defaultSlotSetting: zod_1.z.nativeEnum(interfaces_1.DefaultSlotSettingEnum),
     defaultSensitive: zod_1.z.nativeEnum(interfaces_1.DefaultSensitiveEnum),
+    defaultHideValue: zod_1.z.boolean().optional(),
     appSettings: zod_1.z.array(AppSettingSchema).optional(),
     connectionStrings: zod_1.z.array(AppSettingSchema).optional(),
 });
